@@ -231,7 +231,7 @@ namespace kfusion{
                 return Quaternion<T>(w_, -x_, -y_, -z_);
             }
 
-            T norm()
+            T norm() const
             {
                 return sqrt((w_ * w_) + (x_ * x_) + (y_ * y_) + (z_ * z_));
             }

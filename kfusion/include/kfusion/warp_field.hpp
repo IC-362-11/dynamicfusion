@@ -15,7 +15,7 @@
 namespace kfusion
 {
     typedef nanoflann::KDTreeSingleIndexAdaptor<
-            nanoflann::L2_Simple_Adaptor<float, utils::PointCloud>,
+            nanoflann::L2_Adaptor<float, utils::PointCloud>,
             utils::PointCloud,
             3 /* dim */
     > kd_tree_t;
@@ -78,7 +78,7 @@ namespace kfusion
         utils::DualQuaternion<float> DQB(const Vec3f& vertex) const;
 
         float weighting(float squared_dist, float weight) const;
-        void KNN(Vec3f point) const;
+        void KNN(Vec3f point, float K = KNN_NEIGHBOURS) const;
 
         //        std::vector<kfusion::utils::DualQuaternion<float>> getQuaternions() const;
         void clear();
@@ -86,14 +86,12 @@ namespace kfusion
         const std::vector<deformation_node>* getNodes() const;
         const cv::Mat getNodesAsMat() const;
         void setWarpToLive(const Affine3f &pose);
-        std::vector<float> out_dist_sqr; //FIXME: shouldn't be public
-
+        void insertNewNodes(const std::vector<Vec3f>& points, const std::vector<Vec3f>& normals);
+        std::vector<float> latestSquared() const;
     private:
         //    FIXME: should be a pointer
         std::vector<deformation_node> nodes;
         kd_tree_t* index;
-        std::vector<size_t> ret_index;
-        nanoflann::KNNResultSet<float> *resultSet;
         Affine3f warp_to_live;
         void buildKDTree();
     };

@@ -53,6 +53,11 @@ namespace kfusion
 
         Vec3f light_pose; //meters
 
+        float warp_field_resolution; //meters
+
+        float reg_coeff;
+        int reg_hierarchy_levels;
+
     };
 
     class KF_EXPORTS KinFu

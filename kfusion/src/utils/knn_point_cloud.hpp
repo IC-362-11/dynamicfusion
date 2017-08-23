@@ -23,15 +23,15 @@ namespace kfusion
                 const float d2=p1[2] - pts[idx_p2][2];
                 return d0*d0 + d1*d1 + d2*d2;
             }
-
-            // Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
-            inline float kdtree_distance(const float *p1, const size_t idx_p2,size_t /*size*/) const
-            {
-                const float d0=p1[0]-pts[idx_p2][0];
-                const float d1=p1[1]-pts[idx_p2][1];
-                const float d2=p1[2]-pts[idx_p2][2];
-                return d0*d0+d1*d1+d2*d2;
-            }
+//
+//            // Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
+//            inline float kdtree_distance(const float *p1, const size_t idx_p2,size_t /*size*/) const
+//            {
+//                const float d0=p1[0]-pts[idx_p2][0];
+//                const float d1=p1[1]-pts[idx_p2][1];
+//                const float d2=p1[2]-pts[idx_p2][2];
+//                return d0*d0+d1*d1+d2*d2;
+//            }
 
             // Returns the dim'th component of the idx'th point in the class:
             // Since this is inlined and the "dim" argument is typically an immediate value, the

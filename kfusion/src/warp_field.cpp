@@ -7,10 +7,14 @@
 #include "precomp.hpp"
 #include <opencv2/core/affine.hpp>
 #define VOXEL_SIZE 100
+#include <algorithm>
 
 using namespace kfusion;
 std::vector<utils::DualQuaternion<float>> neighbours; //THIS SHOULD BE SOMEWHERE ELSE BUT TOO SLOW TO REINITIALISE
 utils::PointCloud cloud;
+std::vector<size_t> ret_index;
+nanoflann::KNNResultSet<float> *resultSet;
+std::vector<float> out_dist_sqr;
 
 WarpField::WarpField()
 {
@@ -180,7 +184,7 @@ float WarpField::energy_data(const std::vector<Vec3f> &warped_vertices,
     {
         if(std::isnan(warped_normals[i][0]) || std::isnan(v[0]))
             continue;
-        Vec3f vl(v[0] * intr.fx / -v[2] + intr.cx, v[1] * intr.fy / v[2] + intr.cy, v[2]);
+        Vec3f vl(v[0] * intr.fx / -v[2] + intr.cx, v[1] * intr.fy / v[2] + intr.cy, v[2]); // TODO: TEST THIS! e.g by viewing it against the warp field
         const float energy = tukeyPenalty(warped_normals[i].dot(v - vl)); // normal (warp - live)
         total_energy += energy;
         i++;
@@ -307,8 +311,15 @@ float WarpField::weighting(float squared_dist, float weight) const
  * \brief
  * \return
  */
-void WarpField::KNN(Vec3f point) const
+void WarpField::KNN(Vec3f point, float K) const
 {
+    if(K != KNN_NEIGHBOURS)
+    {
+        resultSet = new nanoflann::KNNResultSet<float>(K);
+        ret_index = std::vector<size_t>(K);
+        out_dist_sqr = std::vector<float>(K);
+    }
+    resultSet->init(&ret_index[0], &out_dist_sqr[0]);
     index->findNeighbors(*resultSet, point.val, nanoflann::SearchParams(10));
 }
 
@@ -352,4 +363,74 @@ void WarpField::clear()
 void WarpField::setWarpToLive(const Affine3f &pose)
 {
     warp_to_live = pose;
+}
+
+/**
+ * @brief Inserts new nodes in the warp field (see section 3.4 of the paper)
+ * @param points Points added at the last frame
+ * @note Should only pass new points rather than the whole frame. New points are determined during surface fusion.
+ */
+//TODO: this should be using radius search but nanoflann radius search looks broken. Use KNN for now.
+void WarpField::insertNewNodes(const std::vector<Vec3f>& points, const std::vector<Vec3f>& normals)
+{
+//    std::vector<size_t> unsupported_indices;
+//    int k = 10;
+//    for(int i = 0; i < points.size(); i++)
+//    {
+//        if(std::isnan(points[i][0]))
+//            continue;
+//        KNN(points[i], k);
+//        for(int j = 0; j < k; j++)
+//            if((sqrt(out_dist_sqr[j]) / nodes[ret_index[j]].weight) >= 1)
+//            {
+//                unsupported_indices.push_back(ret_index[j]);
+//                break;
+//            }
+//    }
+//    std::cout<<"Number of unsupported indices: "<<unsupported_indices.size()<<std::endl;
+    const float search_radius = kfusion::KinFuParams::default_params_dynamicfusion().warp_field_resolution;
+    std::vector<std::pair<size_t,float> > ret_match;
+    utils::PointCloud cloud;
+    cloud.pts.resize(nodes.size());
+
+    std::vector<float> cloud_0;
+    std::vector<float> cloud_1;
+    std::vector<float> cloud_2;
+    for(size_t i = 0; i < nodes.size(); i++)
+    {
+        nodes[i].transform.getTranslation(cloud.pts[i]);
+        cloud_0.push_back(cloud.pts[i][0]);
+        cloud_1.push_back(cloud.pts[i][1]);
+        cloud_2.push_back(cloud.pts[i][2]);
+    }
+
+    auto plm0 = std::max_element(cloud_0.begin(), cloud_0.end());
+    auto plm1 = std::max_element(cloud_1.begin(), cloud_1.end());
+    auto plm2 = std::max_element(cloud_2.begin(), cloud_2.end());
+    kd_tree_t index(3, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+    index.buildIndex();
+
+
+    for(auto point : cloud.pts)
+    {
+
+        std::vector<std::pair<size_t,float> > ret_matches;
+
+        nanoflann::SearchParams params;
+        //params.sorted = false;
+
+        const size_t nMatches = index.radiusSearch(&point[0],search_radius, ret_matches, params);
+
+        std::cout << "radiusSearch(): radius=" << search_radius << " -> " << nMatches << " matches\n";
+//        for (size_t i=0;i<nMatches;i++)
+//            cout << "idx["<< i << "]=" << ret_matches[i].first << " dist["<< i << "]=" << ret_matches[i].second << endl;
+//        cout << "\n";
+
+    }
+}
+
+//FIXME: this is an ugly solution
+std::vector<float> WarpField::latestSquared() const
+{
+    return out_dist_sqr;
 }

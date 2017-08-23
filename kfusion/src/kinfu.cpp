@@ -26,7 +26,7 @@ kfusion::KinFuParams kfusion::KinFuParams::default_params_dynamicfusion()
     const int levels = sizeof(iters)/sizeof(iters[0]);
 
     KinFuParams p;
-// TODO: this should be coming from a calibration file / shouldn't be hardcoded
+// TODO: this should be coming from a configuration file / shouldn't be hardcoded
     p.cols = 640;  //pixels
     p.rows = 480;  //pixels
     p.intr = Intr(570.342f, 570.342f, 320.f, 240.f);
@@ -53,6 +53,8 @@ kfusion::KinFuParams kfusion::KinFuParams::default_params_dynamicfusion()
 
     //p.light_pose = p.volume_pose.translation()/4; //meters
     p.light_pose = Vec3f::all(0.f); //meters
+
+    p.warp_field_resolution = 0.025; //meters, must be larger than voxel size
 
     return p;
 }
@@ -375,9 +377,10 @@ void kfusion::KinFu::dynamicfusion(const cuda::Depth& depth)
         }
 
     std::vector<Vec3f> canonical_visible(warped);
-    getWarp().warp(warped, warped_normals);
+    warp_->warp(warped, warped_normals);
     //ScopeTime time("fusion");
     tsdf().surface_fusion(getWarp(), warped, canonical_visible, depth, camera_pose, params_.intr);
+    warp_->insertNewNodes(warped, warped_normals);
 }
 
 /**
