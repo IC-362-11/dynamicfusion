@@ -282,9 +282,8 @@ bool kfusion::KinFu::operator()(const kfusion::cuda::Depth& depth, const kfusion
 
     poses_.push_back(poses_.back() * affine); // curr -> global
 
-    dynamicfusion(depth);
-    volume_->compute_points();
-    volume_->compute_normals();
+//    dynamicfusion(depth);
+    tsdf().integrate(dists_, poses_.back(), p.intr);
 
     ///////////////////////////////////////////////////////////////////////////////////////////
     // Ray casting
@@ -380,6 +379,8 @@ void kfusion::KinFu::dynamicfusion(const cuda::Depth& depth)
     warp_->warp(warped, warped_normals);
     //ScopeTime time("fusion");
     tsdf().surface_fusion(getWarp(), warped, canonical_visible, depth, camera_pose, params_.intr);
+    volume_->compute_points();
+    volume_->compute_normals();
 //    warp_->insertNewNodes(warped, warped_normals);
 }
 
