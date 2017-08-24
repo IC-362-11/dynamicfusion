@@ -31,7 +31,7 @@ kfusion::KinFuParams kfusion::KinFuParams::default_params_dynamicfusion()
     p.rows = 480;  //pixels
     p.intr = Intr(570.342f, 570.342f, 320.f, 240.f);
 
-    p.volume_dims = Vec3i::all(512);  //number of voxels
+    p.volume_dims = Vec3i::all(256);  //number of voxels
     p.volume_size = Vec3f::all(1.f);  //meters
     p.volume_pose = Affine3f().translate(Vec3f(-p.volume_size[0]/2, -p.volume_size[1]/2, 0.5f));
 
@@ -380,7 +380,7 @@ void kfusion::KinFu::dynamicfusion(const cuda::Depth& depth)
     warp_->warp(warped, warped_normals);
     //ScopeTime time("fusion");
     tsdf().surface_fusion(getWarp(), warped, canonical_visible, depth, camera_pose, params_.intr);
-    warp_->insertNewNodes(warped, warped_normals);
+//    warp_->insertNewNodes(warped, warped_normals);
 }
 
 /**

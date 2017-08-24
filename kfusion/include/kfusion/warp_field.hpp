@@ -80,7 +80,6 @@ namespace kfusion
         float weighting(float squared_dist, float weight) const;
         void KNN(Vec3f point, float K = KNN_NEIGHBOURS) const;
 
-        //        std::vector<kfusion::utils::DualQuaternion<float>> getQuaternions() const;
         void clear();
 
         const std::vector<deformation_node>* getNodes() const;

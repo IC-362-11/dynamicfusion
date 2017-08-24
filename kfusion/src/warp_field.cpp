@@ -6,8 +6,6 @@
 #include "internal.hpp"
 #include "precomp.hpp"
 #include <opencv2/core/affine.hpp>
-#define VOXEL_SIZE 100
-#include <algorithm>
 
 using namespace kfusion;
 std::vector<utils::DualQuaternion<float>> neighbours; //THIS SHOULD BE SOMEWHERE ELSE BUT TOO SLOW TO REINITIALISE
@@ -41,7 +39,8 @@ void WarpField::init(const cv::Mat& first_frame, const cv::Mat& normals)
     assert(first_frame.rows == normals.rows);
     assert(first_frame.cols == normals.cols);
     nodes.resize(first_frame.cols * first_frame.rows);
-
+    auto default_weight = 3* KinFuParams::default_params_dynamicfusion().volume_size[0] /
+                          KinFuParams::default_params_dynamicfusion().volume_dims[0];
     for(int i = 0; i < first_frame.rows; i++)
         for(int j = 0; j < first_frame.cols; j++)
         {
@@ -53,7 +52,7 @@ void WarpField::init(const cv::Mat& first_frame, const cv::Mat& normals)
                                                                                      utils::Quaternion<float>(Vec3f(norm.x,norm.y,norm.z)));
 
                 nodes[i*first_frame.cols+j].vertex = Vec3f(point.x,point.y,point.z);
-                nodes[i*first_frame.cols+j].weight = VOXEL_SIZE;
+                nodes[i*first_frame.cols+j].weight = default_weight;
             }
             else
             {
@@ -216,7 +215,11 @@ void WarpField::energy_reg(const std::vector<std::pair<kfusion::utils::DualQuate
  */
 float WarpField::tukeyPenalty(float x, float c) const
 {
+#ifdef ROBUST_TUKEY
     return std::abs(x) <= c ? x * std::pow((1 - (x * x) / (c * c)), 2) : 0.0f;
+#else
+    return 0.5f*x*x;
+#endif
 }
 
 /**
@@ -370,63 +373,34 @@ void WarpField::setWarpToLive(const Affine3f &pose)
  * @param points Points added at the last frame
  * @note Should only pass new points rather than the whole frame. New points are determined during surface fusion.
  */
-//TODO: this should be using radius search but nanoflann radius search looks broken. Use KNN for now.
+//TODO: Can subsample input based on distance in the first place, which will reduce the number of KNNs performed
 void WarpField::insertNewNodes(const std::vector<Vec3f>& points, const std::vector<Vec3f>& normals)
 {
-//    std::vector<size_t> unsupported_indices;
-//    int k = 10;
-//    for(int i = 0; i < points.size(); i++)
-//    {
-//        if(std::isnan(points[i][0]))
-//            continue;
-//        KNN(points[i], k);
-//        for(int j = 0; j < k; j++)
-//            if((sqrt(out_dist_sqr[j]) / nodes[ret_index[j]].weight) >= 1)
-//            {
-//                unsupported_indices.push_back(ret_index[j]);
-//                break;
-//            }
-//    }
-//    std::cout<<"Number of unsupported indices: "<<unsupported_indices.size()<<std::endl;
+    std::vector<size_t> unsupported_indices;
     const float search_radius = kfusion::KinFuParams::default_params_dynamicfusion().warp_field_resolution;
     std::vector<std::pair<size_t,float> > ret_match;
-    utils::PointCloud cloud;
-    cloud.pts.resize(nodes.size());
 
-    std::vector<float> cloud_0;
-    std::vector<float> cloud_1;
-    std::vector<float> cloud_2;
-    for(size_t i = 0; i < nodes.size(); i++)
+
+    for(auto point : points)
     {
-        nodes[i].transform.getTranslation(cloud.pts[i]);
-        cloud_0.push_back(cloud.pts[i][0]);
-        cloud_1.push_back(cloud.pts[i][1]);
-        cloud_2.push_back(cloud.pts[i][2]);
-    }
-
-    auto plm0 = std::max_element(cloud_0.begin(), cloud_0.end());
-    auto plm1 = std::max_element(cloud_1.begin(), cloud_1.end());
-    auto plm2 = std::max_element(cloud_2.begin(), cloud_2.end());
-    kd_tree_t index(3, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-    index.buildIndex();
-
-
-    for(auto point : cloud.pts)
-    {
-
-        std::vector<std::pair<size_t,float> > ret_matches;
-
-        nanoflann::SearchParams params;
+        if(std::isnan(point[0]))
+            continue;
+        KNN(point);
+        for(int j = 0; j < KNN_NEIGHBOURS; j++)
+            if((sqrt(out_dist_sqr[j]) / nodes[ret_index[j]].weight) >= 1)
+            {
+                unsupported_indices.push_back(ret_index[j]);
+                break;
+            }
+//        nanoflann::SearchParams params;
         //params.sorted = false;
 
-        const size_t nMatches = index.radiusSearch(&point[0],search_radius, ret_matches, params);
-
-        std::cout << "radiusSearch(): radius=" << search_radius << " -> " << nMatches << " matches\n";
-//        for (size_t i=0;i<nMatches;i++)
-//            cout << "idx["<< i << "]=" << ret_matches[i].first << " dist["<< i << "]=" << ret_matches[i].second << endl;
-//        cout << "\n";
-
+//        const size_t nMatches = index->radiusSearch(point.val, search_radius, ret_match, params);
+//        if((sqrt(out_dist_sqr[j]) / nodes[ret_index[j]].weight) >= 1)
+//        std::cout << "radiusSearch(): radius=" << search_radius << " -> " << nMatches << " matches\n";
     }
+    std::cout<<"Number of unsupported indices: "<<unsupported_indices.size()<<std::endl;
+
 }
 
 //FIXME: this is an ugly solution
